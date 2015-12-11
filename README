@@ -1,0 +1,16 @@
+MTC Intelligent Parking Project
+Simulator ver 1.0
+Initiator: Qi Luo
+Date: December 2015
+ 
+Description: 
+-This is a simulator for connected intelligent vehicle parking project. Vehicles are entering the parking structure as a queue, searching for parking spaces, staying for a random period and left. Only vehicles equipped with sensors provide useful information, so we also need to simulate their path decision process. 
+-The objective is to answering these questions: what percentage of "probe cars" is needed to deliver sufficient information? Will frequently activate parked vehicles improve the overall performance? What incentives will affect people's patterns and the system's efficiency?	 
+
+Policy:
+-PUSH to git only after you have finished debugging. Don't leave unfinished work to other team members.
+-COMMENT your code clearly and concisely.
+-COMMUNICATE when you meet some problems in your work or when you are reading other's code.
+-MODULE scripts for specific functions.
+ 
+
