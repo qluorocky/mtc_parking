@@ -1,23 +1,13 @@
-import kivy
-kivy.require('1.9.1') # replace with your current kivy version !
-
-from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.gridlayout import GridLayout
-#from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.core.window import Window
-from kivy.core.image import Image
-#from kivy.graphics import BorderImage
-from kivy.graphics import Color, Rectangle
-#from kivy.uix.image import AsyncImage
-
 import numpy as np
 import math
 import collections
-'''
+from kivy.properties import NumericProperty, ReferenceListProperty, ObjectProperty
+from kivy.vector import Vector
+from kivy.app import App
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, Line, Rectangle
+from kivy.clock import Clock
+''' 
 A parking lot and a car finding empty slots
 +--+--+--+
 |  |  |  |
@@ -27,7 +17,7 @@ A parking lot and a car finding empty slots
 +--+
 +--+
 
-if the sensor reading comes from one of the parking lot,
+if the sensor reading comes from one of the parking lot, 
 then mark the whole parking lot as occupied,
 else mark the grid as occupied
 '''
@@ -40,7 +30,7 @@ RADAR = {
     "leftfront": [(0.5, 0.5), 5.2, (20, 110)],
     "leftrear": [(-3.8, 0.5), 5.2, (70, 160)],
     "rearleft": [(-3.8, 0.5), 5.2, (135, 215)],
-
+    
     "rightfront": [(0.5, -0.5), 5.2, (250, 340)],
     "rightrear": [(-3.8, -0.5), 5.2, (200, 290)],
     "rearright": [(-3.8, -0.5), 5.2, (135, 225)]
@@ -60,7 +50,7 @@ def lineCross(l1, l2):
     t1, t2 = np.linalg.lstsq(A, y)[0]
     # test if intersection is in both line
     return (0 <= t1 <= 1) and (0 <= t2 <= 1)
-
+    
 # def inFan(carState, position, x, y):
 #     '''test to see if x, y is in a fan'''
 
@@ -76,24 +66,24 @@ def lineCross(l1, l2):
 #         rotMatrix = [[math.cos(theta), -math.sin(theta)],
 #                      [math.sin(theta), math.cos(theta)]]
 #         return (math.cos(theta)*dx - math.sin(theta)*dy + x, math.sin(theta)*dx + math.cos(theta)*dy + y)
-
+    
 #     params = RADAR.get(position, None)
 #     if not params: exit(1)
 #     o, r, (tstart, tend) = params
 #     ox, oy = localToGlobal(o)
 #     tstart = TODO
-
+    
 #     # not in range
 #     if ((x-ox)**2 + (y-oy)**2) ** 0.5 > r: return False
 #     # not in theta
 #     theta = (math.atan2(y-oy, x-ox) + math.pi) / 2*math.pi * 360
 #     if theta < tstart or theta > tend: return False
-
+    
 #     return True
 
 
 def inConvexPolygon(vertices, pt):
-    '''
+    ''' 
     test if pt is in the convex polygon defined by edges, where vertices are aranged counterclockwise
     vertices: [(x1, y1), (x2, y2), (x3, y3) ... ]
     edge: [(x1, y1), (x2, y2)] from x1 to x2
@@ -108,15 +98,15 @@ def inConvexPolygon(vertices, pt):
         # (A,B) * (x1, y1) + C = 0 =>
         C = -A*x1 - B*y1
         return (A * xp + B * yp + C >= 0)
-
+        
     for i in range(len(vertices)):
         edge = [vertices[i], vertices[(i+1) % len(vertices)]]
         if not onLeft(edge): return False
 
     return True
-
+    
 class LogOddSquareGrid:
-    '''
+    ''' 
     +-------------+ (side_, side_)
     |      |side_ |
     |      |      |
@@ -126,7 +116,7 @@ class LogOddSquareGrid:
     +-------------+ (side_, -side_)
     assumes the grid is square and the content of grid is logOdds
     assumes grid coordinate is scaled and translated version of global coordinate
-
+    
     @params
     origin_global: global origin
     side_: half the side_length of the grid
@@ -149,8 +139,8 @@ class LogOddSquareGrid:
     def reset(self):
         self.cell_.fill(self.l0_)
         self.parking_ = []
-        self.parking_status_ = np.zeros(10)
-
+        self.parking_status_ = np.zeros(10)        
+        
     def initParkingLot(self, filename):
         # readin pilot_grid_map.csv, in global position
         with open(filename) as f:
@@ -158,9 +148,9 @@ class LogOddSquareGrid:
             for l in f:
                 if header: header = False; continue
                 se1, se2, sw1, sw2, ne1, ne2, nw1, nw2 = map(lambda x: float(x), l.split(',')[1:])
-                self.parking_.append([(sw1,sw2), (se1,se2), (ne1,ne2), (nw1, nw2)])
+                self.parking_.append([(sw1,sw2), (se1,se2), (ne1,ne2), (nw1, nw2)]) 
         self.parking_status_ = np.zeros(len(self.parking_))
-
+        
     def cellToGlobal(self, coord):
         '''from cell coordinate center to utm17 global coordinate'''
         x, y = coord
@@ -173,7 +163,7 @@ class LogOddSquareGrid:
         tx, ty = self.translate_
         return ( int ((x - tx) / self.step_), int((y - ty) / self.step_))
 
-
+    
 class State:
     '''position and oriention of the car'''
     def __init__(self, x=0, y=0, theta=0):
@@ -197,20 +187,20 @@ class Mapping:
         refresh_update: whether set updated_parking_ to 0
         '''
         if refresh_update: self.updated_parking_.fill(0)
-
+        
         # get where the car is
         cellX, cellY = self.grid_.globalToCell((self.X_.x, self.X_.y))
         x, y = cellX + localx, cellY + localy
 
         # updated_parking = np.zeros(self.grid_.parking_status_)
-
+        
         # mark parking lot corresponding to localx and localy
         for i, vertices in enumerate(self.grid_.parking_):
             if inConvexPolygon(vertices, (x, y)):
                 self.grid_.parking_status_[i] = self.grid_.parking_status_[i] + self.locc_ - self.l0_
                 self.updated_parking_[i] = 1
                 break
-
+        
         # mark the cell containing the datapoint as occupied, in fact, we don't care as we only care about whether parking lot is empty
         # self.grid_.cell_[x][y] = self.grid_.cell_[x][y] + self.locc_ - self.l0_
 
@@ -238,18 +228,18 @@ class Mapping:
         for parking_num, sensorList in candidateDict:
             if self.getAreaRatio(parking_num, sensorList) >= PARKINGTHRESHOLD:
                 # mark free
-                self.grid_.parking_status_[parking_num] = self.grid_.parking_status_[i] + self.free_ - self.l0_
+                self.grid_.parking_status_[parking_num] = self.grid_.parking_status_[i] + self.free_ - self.l0_ 
 
     def getFanVertices(self,v): # v is value in RADAR
         (cx, cy), r, (tstart, tend) = v
 
-        # first convert to global location
+        # first convert to global location        
         gx = self.X_.x + cx * math.cos(self.X_.theta) + cy * math.sin(self.X_.theta)
         gy = self.X_.y - cx * math.sin(self.X_.theta) + cy * math.cos(self.X_.theta)
         cx, cy = gx, gy
         tstart = tstart + self.X_.theta
         tend = tend + self.X_.theta
-        # convert to cell position
+        # convert to cell position 
         (cx, cy) = self.grid_.globalToCell((cx, cy))
 
         tmid = (tstart + tend) / 2.0
@@ -266,11 +256,11 @@ class Mapping:
         # get its surrounding rectangle box
         xList = map(lambda p: p[0], parkingLot)
         yList = map(lambda p: p[1], parkingLot)
-
-        # convert to cell coordinate
+        
+        # convert to cell coordinate            
         minX, minY = self.grid_.globalToCell((min(xList), min(ylist)))
         maxY, maxY = self.grid_.globalToCell((max(xList), max(ylist)))
-
+        
         # calculate area
         denominator = 0.0 # area of parking lot
         numerator = 0.0 # area of intersection(parking lot, sensors)
@@ -286,8 +276,8 @@ class Mapping:
                             break
 
         return numerator / denominator
-
-
+        
+            
     def handleSensor(self): # handler for reading data to call
         '''read in local sensor reading'''
         # for each timestamp reading, updateGrid once, skip header
@@ -299,16 +289,16 @@ class Mapping:
         unprocessed_reading = map(lambda x: None, sensor_names) # [None, (t,lx,ly), None, ...]
 
         for f in sensors: f.readline() # skip headers
-
+        
         gx,gy,_,_,t0,speed,_,_,theta,_,_,_ = map(lambda x: float(x), f_trace.readline().split(','))
         t1 = t0
         for l in f_trace:
 
             print l
-            # localization goes here: todo
+            # localization goes here: todo            
             self.updateState(State(gx,gy,theta))
             t0 = t1
-            new_interval = True
+            new_interval = True            
             # new current time
             gx,gy,_,_,t1,speed,_,_,theta,_,_,_ = map(lambda x: float(x), l.split(','))
 
@@ -340,28 +330,41 @@ class Mapping:
 
         f_trace.close()
         for f in sensors: f.close()
-
+                
     def updateState(self, X): # handler for localization to call
         self.X_ = X
 
+class ProbeCar(Widget):
+	velocity_x = NumericProperty(0)
+	velocity_y = NumericProperty(0)
+	velocity = ReferenceListProperty(velocity_x, velocity_y)
+		
+	def move(self):
+		self.pos = Vector(*self.velocity) + self.pos	
 
-class StartScreen(Screen):
-    pass
+class Drive(Widget):
+	car = ObjectProperty(None)
+	
+	def start(self, vel=(4,0)):
+		self.car.center = self.center
+		self.car.velocity = vel
+	
+	def update(self, dt):
+		self.car.move()
+		
+class CarApp(App):
+	def build(self):
+		drive = Drive()
+		drive.start()
+		Clock.schedule_interval(drive.update, 1.0/60.0)	
+		return Drive() 
+		#m = Mapping() # plz give the global origin coordinate
+		#m.handleSensor()   
+		#add clock
+		#return m 
 
-class GameScreen(Screen):
-    pass
-
-class RootScreen(ScreenManager):
-    pass
-
-
-class MainApp(App):
-    def build(self):
-        return RootScreen()
 
 
 if __name__ == '__main__':
-    MainApp().run()
-    m = Mapping() # plz give the global origin coordinate
-    m.handleSensor()
-
+	CarApp().run()
+    

@@ -1,0 +1,20 @@
+#: kivy 1.9.1
+
+<ProbeCar>:
+	size: 50,50
+	canvas:
+		Ellipse:
+			pos: self.pos
+			size: self.size
+
+<Drive>:
+	car: probe_car
+	
+	canvas:
+		Rectangle:
+			pos: self.center_x, 0
+			size: self.size
+	ProbeCar:
+		id: probe_car
+		center: self.parent.center
+		
